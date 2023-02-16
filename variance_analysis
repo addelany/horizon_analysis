@@ -1,0 +1,23 @@
+library(tidyverse)
+
+## open the data 
+
+vars <- FLAREr:::arrow_env_vars()
+
+s3 <- arrow::s3_bucket("drivers/noaa/gefs-v12/stage2/parquet/0", endpoint_override = "s3.flare-forecast.org", anonymous = TRUE)
+
+df <- arrow::open_dataset(s3) |> 
+  dplyr::filter(site_id == "bvre", 
+                reference_datetime > lubridate::as_datetime('2023-01-01 00:00:00'), 
+                reference_datetime < lubridate::as_datetime('2023-01-03 00:00:00')) %>% 
+  group_by(reference_datetime, datetime, variable) %>% 
+  summarize(var = var(prediction)) %>% 
+  collect()
+
+FLAREr:::unset_arrow_vars(vars)
+
+df |> 
+  mutate(horizon = as.numeric(datetime - reference_datetime)) |> 
+  ggplot(aes(x = horizon, y = var)) +
+  geom_line() + 
+  facet_wrap(~variable, scale = "free")
